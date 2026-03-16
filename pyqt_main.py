@@ -1,5 +1,6 @@
 import sys
 
+
 from icon.icon_data import get_moni_icon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -11,7 +12,14 @@ from PyQt6.QtWidgets import (
 )
 from datetime import datetime
 
-from PyQt6.QtWidgets import QLabel, QPushButton, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import (
+    QLabel,
+    QPushButton,
+    QFileDialog,
+    QMessageBox,
+    QComboBox,
+    QCheckBox,
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QTextCursor
 
@@ -25,9 +33,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.is_dark_mode = False
-
+        self.product_name: list[str] = []
+        self.edid_data_store: dict[str, str] = {}  # 搭配product_name與comboBox
         self.parsed_data_list: list[dict[str, str]] = []
         self.separator_lines = False
+
         self.themes = {
             "light": """
                 QMainWindow {
@@ -43,7 +53,7 @@ class MainWindow(QMainWindow):
                     color: #000000;
                     border: 1px solid #CCCCCC;
                     padding: 5px;
-                    outline: none;
+                    border-radius: 3px;
                 }
                 QPushButton:hover {
                     background-color: #E0E0E0;
@@ -56,6 +66,26 @@ class MainWindow(QMainWindow):
                     background-color: #FFFFFF;
                     color: #000000;
                     border: 1px solid #CCCCCC;
+                    padding: 5px;
+                    border-radius: 3px;
+                }
+                /* 下拉箭頭區域 */
+                QComboBox::drop-down {
+                    border: none;
+                    width: 20px;
+                }
+                /* 下拉選單的整體容器 */
+                QComboBox QAbstractItemView {
+                    background-color: #FFFFFF;   /* 選單背景色 */
+                    color: #000000;              /* 文字顏色 */
+                    border: 1px solid #CCCCCC;
+                    selection-background-color: #07c7ed;  /* 選中項目的背景色 */
+                    selection-color: #FFFFFF;             /* 選中項目的文字色 */
+                    outline: none;
+                }
+                QComboBox QAbstractItemView::item:hover {
+                    background-color: #e0f7fa;
+                    color: #000000;
                 }
                 QTextEdit {
                     background-color: #F5F5F5;
@@ -69,6 +99,30 @@ class MainWindow(QMainWindow):
                     border: 1px solid #CCCCCC;
                     font-family: Inconsolata semiexpanded;
                 }
+                QCheckBox {
+                    background-color: #FFFFFF;
+                    color: #000000;
+                }
+                QCheckBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 1px solid #888;
+                    border-radius: 1px;
+                    background-color: #444;
+                }
+                QCheckBox::indicator:checked {
+                    background-color: #07c7ed;
+                    border-color: #000000;
+                }
+                QCheckBox::indicator:unchecked {
+                    width: 16px;
+                    height: 16px;
+                    background-color: #DEDEDE;
+                }
+                QCheckBox::indicator:hover {
+                    border-color: #aaa;
+                }
+                
             """,
             "dark": """
                 QMainWindow {
@@ -84,7 +138,7 @@ class MainWindow(QMainWindow):
                     color: #FFFFFF;
                     border: 1px solid #555555;
                     padding: 5px;
-                    outline: none;
+                    border-radius: 3px;
                 }
                 QPushButton:hover {
                     background-color: #4D4D4D;
@@ -97,7 +151,27 @@ class MainWindow(QMainWindow):
                     background-color: #2D2D2D;
                     color: #FFFFFF;
                     border: 1px solid #3D3D3D;
+                    padding: 5px;
+                    border-radius: 3px;
                 }
+                /* 下拉箭頭區域 */
+                QComboBox::drop-down {
+                    border: none;
+                    width: 20px;
+                }
+                /* 下拉選單的整體容器 */
+                QComboBox QAbstractItemView {
+                    background-color: #2D2D2D;   /* 選單背景色 */
+                    color: #FFFFFF;              /* 文字顏色 */
+                    border: 1px solid #3D3D3D;
+                    selection-background-color: #07c7ed;  /* 選中項目的背景色 */
+                    selection-color: #FFFFFF;             /* 選中項目的文字色 */
+                    outline: none;
+                }
+                QComboBox QAbstractItemView::item:hover {
+                    background-color: #e0f7fa;
+                    color: #000000;
+                }                
                 QTextEdit {
                     background-color: #2D2D2D;
                     color: #58c2e5;
@@ -110,6 +184,23 @@ class MainWindow(QMainWindow):
                     border: 1px solid #2D2D2D;
                     font-family: Inconsolata semiexpanded;
                 }
+                QCheckBox {
+                    background-color: #1E1E1E;
+                    color: #FFFFFF;
+                }
+                QCheckBox::indicator:checked {
+                    width: 16px;
+                    height: 16px;
+                    background-color: #ffb514;
+                    border-color: #000000;
+                }
+                QCheckBox::indicator:unchecked {
+                    width: 16px;
+                    height: 16px;
+                    background-color: #DEDEDE;
+                }      
+
+                         
             """,
         }
 
@@ -142,6 +233,8 @@ class MainWindow(QMainWindow):
         # 顯示器數量label
         self.monitor_count_label = QLabel("目前顯示器數量: 0")
         self.monitor_count_label.setStyleSheet("margin-left: 60px;")  # 加一些間距
+        self.include_description_checkbox = QCheckBox("添加描述(選擇其他顯示器觸發)")
+        self.include_description_checkbox.setChecked(True)  # 預設開啟
 
         # Create text display
         self.text_display = QTextEdit()
@@ -153,10 +246,12 @@ class MainWindow(QMainWindow):
 
         self.text_display.setFont(QFont(font_family, int(self.font_size_label.text())))
         # Other controls
-        self.refresh_btn = QPushButton("重新整理顯示器資訊")
-        self.export_btn = QPushButton("匯出資訊")
-
+        self.refresh_btn = QPushButton("重新整理")
+        self.export_btn = QPushButton("匯出目前畫面")
         self.theme_btn = QPushButton("切換夜間模式")
+        # ComboBox 初始化
+        self.monitor_selector = QComboBox()
+        self.monitor_selector.currentIndexChanged.connect(self.on_monitor_changed)
 
         self.labels = [font_label, self.font_size_label, self.monitor_count_label]
 
@@ -167,8 +262,9 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.increase_btn)
         toolbar.addWidget(self.refresh_btn)
         toolbar.addWidget(self.export_btn)
+        toolbar.addWidget(self.include_description_checkbox)
         toolbar.addWidget(self.monitor_count_label)
-
+        toolbar.addWidget(self.monitor_selector)
         toolbar.addStretch()
         toolbar.addWidget(self.theme_btn)
 
@@ -182,6 +278,8 @@ class MainWindow(QMainWindow):
             self.refresh_btn,
             self.export_btn,
             self.theme_btn,
+            self.monitor_selector,
+            self.include_description_checkbox,
         ]
         # Connect font size buttons
         self.decrease_btn.clicked.connect(self.decrease_font_size)  # type: ignore
@@ -211,7 +309,13 @@ class MainWindow(QMainWindow):
 
     def export_info(self):
         """Export the display information to various file formats"""
-        monitor_content = self.text_display.toPlainText()
+
+        product_name = self.monitor_selector.currentText() or "Unknown_Monitor"
+        content = self.get_current_display_text()
+        name = product_name
+        if product_name == "顯示所有顯示器":
+            name = ""
+            name += "_".join(self.edid_data_store.keys())
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -221,7 +325,7 @@ class MainWindow(QMainWindow):
         filename, selected_filter = QFileDialog.getSaveFileName(
             self,
             "儲存檔案",
-            f"EDID_Info_{timestamp}",
+            f"{name}_{timestamp}",
             file_types,
         )
 
@@ -233,7 +337,7 @@ class MainWindow(QMainWindow):
             if selected_filter.startswith("Text Files") or filename.lower().endswith(
                 ".txt"
             ):
-                self._export_as_txt(filename, monitor_content)
+                self._export_as_txt(filename, content)
 
             # 显示成功消息
             QMessageBox.information(
@@ -251,19 +355,19 @@ class MainWindow(QMainWindow):
             filename += ".txt"
 
         with open(filename, "w", encoding="utf-8") as f:
-            # 加入標題
-            f.write("=" * 60 + "\n")
-            f.write("EDID 顯示器信息導出\n")
-            f.write(f"導出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("=" * 60 + "\n\n")
+            # # 加入標題
+            # f.write("=" * 60 + "\n")
+            # f.write("EDID 顯示器信息導出\n")
+            # f.write(f"導出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            # f.write("=" * 60 + "\n\n")
 
             # 寫入主要内容
             f.write(content)
 
-            # 添加文件尾部信息
-            f.write("\n\n" + "=" * 60 + "\n")
-            f.write("導出完成\n")
-            f.write("=" * 60 + "\n")
+            # # 添加文件尾部信息
+            # f.write("\n\n" + "=" * 60 + "\n")
+            # f.write("導出完成\n")
+            # f.write("=" * 60 + "\n")
 
     def format_edid_data(self, data: dict[str, str]) -> str:
         """將 EDID 資料格式化為類似 format_data.txt 的格式"""
@@ -273,28 +377,75 @@ class MainWindow(QMainWindow):
         formatted_text: str = ""
         try:
             if "product_name" in data:
-                formatted_text += "Product Name: "
-                formatted_text += data["product_name"]
-                formatted_text += "\n\n"
-            if "EDIDRawData" in data:
-                formatted_text += "EDID Raw Data: \n"
-                formatted_text += data["EDIDRawData"]
+                name = data["product_name"]
+                self.product_name.append(name)
 
+                formatted_text += "Product Name: "
+                formatted_text += name
+                formatted_text += "\n\n"
+
+                if "EDIDRawData" in data:
+                    formatted_text += "EDID Raw Data: \n"
+                    formatted_text += data["EDIDRawData"]
+
+                    self.edid_data_store[name] = data["EDIDRawData"]
             formatted_text += "\n"
 
         except Exception as e:
             formatted_text += f"資料格式化時發生錯誤: {str(e)}\n"
-            # formatted_text += f"原始資料: {str(data)}"
 
         return formatted_text
 
+    def combo_box_update(self, data: dict[str, str]):
+        # ✅ 儲存格式化結果，並更新 ComboBox
+        if "product_name" in data:
+            name = data["product_name"]
+
+            # 避免重複加入
+            if self.monitor_selector.findText(name) == -1:
+                self.monitor_selector.addItem(name)
+
+    def on_monitor_changed(self, index: int):
+        """ComboBox 切換時，更新顯示內容"""
+
+        if index < 0:
+            return
+
+        # self.text_display.clear()
+        # self.update_display()
+        include_desc = self.include_description_checkbox.isChecked()
+        content = ""
+        name = self.monitor_selector.itemText(index)
+        if name in self.edid_data_store:
+            if include_desc:
+                content = self.format_edid_data(
+                    self.parsed_data_list[index - 1]
+                )  # 更新格式化內容
+            else:
+                content = self.edid_data_store[name]  # 直接顯示原始EDID數據
+            self.text_display.setPlainText(content)
+        else:
+            for index in range(len(self.parsed_data_list)):
+                if "product_name" in self.parsed_data_list[index]:
+                    content += f"{'='*16}第{index+1}個顯示器資訊{'='*16}\n"
+                    content += (
+                        self.format_edid_data(self.parsed_data_list[index]) + "\n"
+                    )
+            self.text_display.setPlainText(content)
+
+    def get_current_display_text(self) -> str:
+        """取得目前畫面顯示的文字（供匯出使用）"""
+        return self.text_display.toPlainText()
+
     def update_display(self):
         """更新顯示內容基於選擇的資訊類型"""
+
         for index in range(len(self.parsed_data_list)):
             self.parsed_data = self.parsed_data_list[index]
             if self.parsed_data:
 
                 content = self.format_edid_data(self.parsed_data)
+                self.combo_box_update(self.parsed_data)
                 self.text_display.append(f"{'='*16}第{index+1}個顯示器資訊{'='*16}")
                 self.text_display.append(content)
 
@@ -309,8 +460,13 @@ class MainWindow(QMainWindow):
     def refresh_monitor_info(self):
         """Refresh monitor information"""
         self.text_display.clear()
-        self.text_display.append("正在讀取顯示器資訊...")
-        self.text_display.clear()
+        self.edid_data_store.clear()  # ✅ 清除舊資料
+
+        # ✅ 重置 ComboBox，第一項固定為「顯示所有顯示器」
+        self.monitor_selector.blockSignals(True)  # 避免觸發 on_monitor_changed
+        self.monitor_selector.clear()
+        self.monitor_selector.addItem("顯示所有顯示器")
+        self.monitor_selector.blockSignals(False)
 
         try:
             # 調用 EDID 解析器

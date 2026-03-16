@@ -13,12 +13,14 @@ def create_exe_with_better_optimization():
         "--onefile",
         "--noconsole",
         "--clean",
-        "--name=EDID Reader",
+        "--name=EDID Reader v1.1",
         "--icon=" + icon_path,
         # 加入所有相關的 Python 檔案
         "--add-data=edid_main.py;.",
         "--add-data=monitor_info.py;.",
         "--add-data=product_name.py;.",
+        "--add-data=picture/checkbox_unchecked.png;.",
+        "--add-data=picture/checkbox_checked.png;.",
         "--add-data=fonts/embedded_fonts.py;fonts",
         # 權限和視窗設定
         "--uac-admin",
